@@ -1,0 +1,25 @@
+#!/usr/bin/make -f
+# Uncomment this to turn on verbose mode.
+# export DH_VERBOSE=1
+
+%:
+	dh $@
+
+override_dh_install:
+	dh_install -XLICENSE -X.gitignore
+
+	# Some png files are executable
+	find  $(CURDIR)/debian/roundcubemail-plugins-kolab/usr/share/roundcubemail/plugins/ -type f -name *.png -perm -1 -exec chmod -x {} \;
+	# This javascript is also executable
+	chmod -x $(CURDIR)/debian/roundcubemail-plugins-kolab/usr/share/roundcubemail/plugins/tasklist/jquery.tagedit.js
+
+        # Copy plugin configuration files to the correct location
+	for conffile in $$(find $(CURDIR)/debian/roundcubemail-plugins-kolab/usr/share/roundcubemail/plugins -type f -name "config.inc.php.dist"); do \
+		plugin=$$(basename $$(dirname $$conffile)); \
+		mv $$conffile $(CURDIR)/debian/roundcubemail-plugins-kolab/etc/roundcubemail/$$plugin.inc.php; \
+		ln -s ../../../../../etc/roundcubemail/$$plugin.inc.php $(CURDIR)/debian/roundcubemail-plugins-kolab/usr/share/roundcubemail/plugins/$$plugin/config.inc.php; \
+	done
+
+	# Remove the original temp location in order for us to be able to replace it with a symbolic link
+	rm -rf $(CURDIR)/debian/roundcubemail-plugins-kolab/usr/share/roundcubemail/plugins/odfviewer/files
+

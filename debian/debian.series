@@ -1,0 +1,4 @@
+roundcubemail-plugins-kolab-3.1.6-task-enhancements.patch -p1
+roundcubemail-plugins-kolab-3.1.6-2353-ics-import-efficiency.patch -p1
+roundcubemail-plugins-kolab-3.1.6-2463-all-day-events-are-off-one-day.patch -p1
+roundcubemail-plugins-kolab-3.1.6-fix-replacement-of-alarm-values.patch -p1

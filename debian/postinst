@@ -1,0 +1,23 @@
+#!/bin/sh
+
+set -e
+
+fix_permissions() {
+	chown -R www-data:adm /var/lib/roundcubemail
+	chown -R www-data:adm /var/log/roundcubemail
+	chown -R root:www-data /etc/roundcubemail
+	find /etc/roundcubemail -type d -exec chmod u+rwx,g+rx,g-w,o-rwx {} \;
+	find /etc/roundcubemail -type f -exec chmod u+rw,u-x,g+r,g-wx,o-rwx {} \;
+}
+
+case $1 in
+	*)
+		fix_permissions
+        if [ -f "/etc/roundcubemail/kolab.inc.php" -a -f "/etc/roundcubemail/libkolab.inc.php" ]; then
+            rm -rf /etc/roundcubemail/libkolab.inc.php
+            mv /etc/roundcubemail/kolab.inc.php /etc/roundcubemail/libkolab.inc.php
+        fi
+	;;
+esac
+
+#DEBHELPER#
