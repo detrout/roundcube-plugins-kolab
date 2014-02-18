@@ -8,7 +8,7 @@
  * @author Thomas Bruederli <bruederli@kolabsys.com>
  *
  * Copyright (C) 2010, Lazlo Westerhof <hello@lazlo.me>
- * Copyright (C) 2012, Kolab Systems AG <contact@kolabsys.com>
+ * Copyright (C) 2012-2014, Kolab Systems AG <contact@kolabsys.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -127,6 +127,28 @@ class database_driver extends calendar_driver
 
     // 'personal' is unsupported in this driver
 
+    // append the virtual birthdays calendar
+    if ($this->rc->config->get('calendar_contact_birthdays', false)) {
+      $prefs = $this->rc->config->get('birthday_calendar', array('color' => '87CEFA'));
+      $hidden = array_filter(explode(',', $this->rc->config->get('hidden_calendars', '')));
+
+      $id = self::BIRTHDAY_CALENDAR_ID;
+      if (!$active || !in_array($id, $hidden)) {
+        $calendars[$id] = array(
+          'id'         => $id,
+          'name'       => $this->cal->gettext('birthdays'),
+          'listname'   => $this->cal->gettext('birthdays'),
+          'color'      => $prefs['color'],
+          'showalarms' => (bool)$this->rc->config->get('calendar_birthdays_alarm_type'),
+          'active'     => !in_array($id, $hidden),
+          'class_name' => 'birthdays',
+          'readonly'   => true,
+          'default'    => false,
+          'children'   => false,
+        );
+      }
+    }
+
     return $calendars;
   }
 
@@ -163,6 +185,17 @@ class database_driver extends calendar_driver
    */
   public function edit_calendar($prop)
   {
+    // birthday calendar properties are saved in user prefs
+    if ($prop['id'] == self::BIRTHDAY_CALENDAR_ID) {
+      $prefs['birthday_calendar'] = $this->rc->config->get('birthday_calendar', array('color' => '87CEFA'));
+      if (isset($prop['color']))
+        $prefs['birthday_calendar']['color'] = $prop['color'];
+      if (isset($prop['showalarms']))
+        $prefs['calendar_birthdays_alarm_type'] = $prop['showalarms'] ? $this->alarm_types[0] : '';
+      $this->rc->user->save_prefs($prefs);
+      return true;
+    }
+
     $query = $this->rc->db->query(
       "UPDATE " . $this->db_calendars . "
        SET   name=?, color=?, showalarms=?
@@ -254,7 +287,7 @@ class database_driver extends calendar_driver
         strval($event['title']),
         strval($event['description']),
         strval($event['location']),
-        strval($event['categories']),
+        join(',', (array)$event['categories']),
         strval($event['url']),
         intval($event['free_busy']),
         intval($event['priority']),
@@ -380,6 +413,11 @@ class database_driver extends calendar_driver
               $event['end'] = clone $event['start'];
               $event['end']->add(new DateInterval('PT'.$new_duration.'S'));
             }
+            // dates did not change, use the ones from master
+            else if ($event['start'] == $old['start'] && $event['end'] == $old['end']) {
+              $event['start'] = $master['start'];
+              $event['end'] = $master['end'];
+            }
             break;
         }
       }
@@ -399,11 +437,13 @@ class database_driver extends calendar_driver
    */
   private function _save_preprocess($event)
   {
-    // shift dates to server's timezone
-    $event['start'] = clone $event['start'];
-    $event['start']->setTimezone($this->server_timezone);
-    $event['end'] = clone $event['end'];
-    $event['end']->setTimezone($this->server_timezone);
+    // shift dates to server's timezone (except for all-day events)
+    if (!$event['allday']) {
+      $event['start'] = clone $event['start'];
+      $event['start']->setTimezone($this->server_timezone);
+      $event['end'] = clone $event['end'];
+      $event['end']->setTimezone($this->server_timezone);
+    }
     
     // compose vcalendar-style recurrencue rule from structured data
     $rrule = $event['recurrence'] ? libcalendaring::to_rrule($event['recurrence']) : '';
@@ -463,6 +503,8 @@ class database_driver extends calendar_driver
     foreach ($set_cols as $col) {
       if (is_object($event[$col]) && is_a($event[$col], 'DateTime'))
         $sql_set[] = $this->rc->db->quote_identifier($col) . '=' . $this->rc->db->quote($event[$col]->format(self::DB_DATE_FORMAT));
+      else if (is_array($event[$col]))
+        $sql_set[] = $this->rc->db->quote_identifier($col) . '=' . $this->rc->db->quote(join(',', $event[$col]));
       else if (isset($event[$col]))
         $sql_set[] = $this->rc->db->quote_identifier($col) . '=' . $this->rc->db->quote($event[$col]);
     }
@@ -542,8 +584,8 @@ class database_driver extends calendar_driver
         $notify_at = $this->_get_notification(array('alarms' => $event['alarms'], 'start' => $next_start, 'end' => $next_end));
         $query = $this->rc->db->query(sprintf(
           "INSERT INTO " . $this->db_events . "
-           (calendar_id, recurrence_id, created, changed, uid, %s, %s, all_day, recurrence, title, description, location, categories, url, free_busy, priority, sensitivity, alarms, notifyat)
-            SELECT calendar_id, ?, %s, %s, uid, ?, ?, all_day, recurrence, title, description, location, categories, url, free_busy, priority, sensitivity, alarms, ?
+           (calendar_id, recurrence_id, created, changed, uid, %s, %s, all_day, recurrence, title, description, location, categories, url, free_busy, priority, sensitivity, alarms, attendees, notifyat)
+            SELECT calendar_id, ?, %s, %s, uid, ?, ?, all_day, recurrence, title, description, location, categories, url, free_busy, priority, sensitivity, alarms, attendees, ?
             FROM  " . $this->db_events . " WHERE event_id=? AND calendar_id IN (" . $this->calendar_ids . ")",
             $this->rc->db->quote_identifier('start'),
             $this->rc->db->quote_identifier('end'),
@@ -743,7 +785,7 @@ class database_driver extends calendar_driver
     }
     
     if (!$virtual)
-      $sql_arr .= ' AND e.recurrence_id = 0';
+      $sql_add .= ' AND e.recurrence_id = 0';
     
     if ($modifiedsince)
       $sql_add .= ' AND e.changed >= ' . $this->rc->db->quote(date('Y-m-d H:i:s', $modifiedsince));
@@ -768,7 +810,12 @@ class database_driver extends calendar_driver
         $events[] = $this->_read_postprocess($event);
       }
     }
-    
+
+    // add events from the address books birthday calendar
+    if (in_array(self::BIRTHDAY_CALENDAR_ID, $calendars)) {
+      $events = array_merge($events, $this->load_birthday_events($start, $end, $search, $modifiedsince));
+    }
+
     return $events;
   }
 
@@ -820,6 +867,9 @@ class database_driver extends calendar_driver
         $attendees[] = $att;
       }
       $event['attendees'] = $attendees;
+    }
+    else {
+      $event['attendees'] = array();
     }
 
     unset($event['event_id'], $event['calendar_id'], $event['notifyat'], $event['all_day'], $event['_attachments']);

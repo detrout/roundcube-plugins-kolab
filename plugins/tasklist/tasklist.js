@@ -1465,12 +1465,7 @@ function rcube_tasklist_ui(settings)
         if (!rec || rec.readonly || rcmail.busy)
             return false;
 
-        var html, buttons = [{
-            text: rcmail.gettext('cancel', 'tasklist'),
-            click: function() {
-                $(this).dialog('close');
-            }
-        }];
+        var html, buttons = [];
 
         if (rec.children && rec.children.length) {
             html = rcmail.gettext('deleteparenttasktconfirm','tasklist');
@@ -1499,6 +1494,13 @@ function rcube_tasklist_ui(settings)
                 }
             });
         }
+
+        buttons.push({
+            text: rcmail.gettext('cancel', 'tasklist'),
+            click: function() {
+                $(this).dialog('close');
+            }
+        });
 
         var $dialog = $('<div>').html(html);
         $dialog.dialog({
@@ -1540,6 +1542,7 @@ function rcube_tasklist_ui(settings)
         }
 
         li.remove();
+        delete listdata[id];
     }
 
     /**
@@ -1823,7 +1826,7 @@ function rcube_tasklist_ui(settings)
 
         $('.popupmenu:visible').each(function(i, elem){
             var menu = $(elem), id = elem.id;
-            if (target.id != id+'link' && (!menu.data('sticky') || !target_overlaps(e.target, elem))) {
+            if (id && target.id != id+'link' && (!menu.data('sticky') || !target_overlaps(e.target, elem))) {
                 menu.hide();
                 count++;
             }

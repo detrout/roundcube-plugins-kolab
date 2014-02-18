@@ -31,7 +31,7 @@ body.attachmentwin #topnav .topright {
 	top: 0;
 	left: 10px;
 	bottom: 0;
-	width: 240px;
+	width: 250px;
 }
 
 #datepicker {
@@ -95,7 +95,7 @@ body.attachmentwin #topnav .topright {
 
 #calendarsidebartoggle {
 	position: absolute;
-	left: 254px;
+	left: 264px;
 	width: 8px;
 	top: 40px;
 	bottom: 0;
@@ -114,10 +114,9 @@ div.sidebarclosed {
 #calendar {
 	position: absolute;
 	top: 0;
-	left: 266px;
+	left: 276px;
 	right: 0;
 	bottom: 0;
-	padding-bottom: 28px;
 }
 
 .calendarmain #message.statusbar {
@@ -125,10 +124,10 @@ div.sidebarclosed {
 	border-bottom-color: #ababab;
 }
 
-#calendar .timezonedisplay {
+#timezonedisplay {
 	position: absolute;
-	bottom: 9px;
-	right: 8px;
+	bottom: 5px;
+	right: 12px;
 	font-size: 0.85em;
 	color: #666;
 }
@@ -158,7 +157,7 @@ pre {
 }
 
 #calendarslist li.virtual {
-	padding-top: 2px;
+	height: 12px;
 }
 
 #calendarslist li label {
@@ -231,6 +230,7 @@ pre {
 
 #calendarslist li.virtual span.calname {
 	color: #aaa;
+	top: 2px;
 }
 
 #calfeedurl,
@@ -275,18 +275,28 @@ pre {
 	top: -6px;
 	left: 0;
 	height: 40px;
+	white-space: nowrap;
 }
 
 #calendartoolbar a.button {
 	background-image: url(images/toolbar.png);
+	padding-left: 0;
+	padding-right: 0;
+	min-width: 50px;
+	max-width: 60px;
 }
 
 #calendartoolbar a.button.addevent {
 	background-position: center 1px;
+	max-width: 70px;
 }
 
 #calendartoolbar a.button.export {
 	background-position: center -40px;
+}
+
+#calendartoolbar a.button.import {
+	background-position: center -440px;
 }
 
 #calendartoolbar a.button.print {
@@ -980,7 +990,7 @@ a.dropdown-link:after {
 
 #agendaoptions {
 	position: absolute;
-	bottom: 28px;
+	bottom: 0;
 	left: 0;
 	right: 0;
 	height: auto;
@@ -989,6 +999,7 @@ a.dropdown-link:after {
 	border: 1px solid #c3c3c3;
 	border-top-color: #ddd;
 	border-bottom-color: #bbb;
+	border-radius: 0 0 4px 4px;
 	background: #ebebeb;
 	background: -moz-linear-gradient(top, #ebebeb 0%, #c6c6c6 100%);
 	background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#ebebeb), color-stop(100%,#c6c6c6));
@@ -1028,7 +1039,7 @@ a.dropdown-link:after {
 .rcube-fc-content {
 	overflow: hidden;
 	border: 0;
-	border-radius: 4px 4px 0 0;
+	border-radius: 4px;
 	box-shadow: 0 0 2px #999;
 	-o-box-shadow: 0 0 2px #999;
 	-webkit-box-shadow: 0 0 2px #999;
@@ -1040,7 +1051,7 @@ a.dropdown-link:after {
 	top: 40px;
 	left: 0;
 	right: 0;
-	bottom: 28px;
+	bottom: 0;
 	background: #fff;
 }
 
@@ -1298,6 +1309,9 @@ div.fc-event-location {
 .calendarmain .fc-view-table tr.fc-event td {
 	border-color: #ddd;
 	padding: 4px 7px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .calendarmain .fc-view-table tr.fc-event td.fc-event-handle {
@@ -1328,8 +1342,12 @@ div.fc-event-location {
 	box-shadow: inset 0px 0 1px 1px rgba(0, 0, 0, 0.3);
 }
 
+.calendarmain .fc-view-table col.fc-event-location {
+	width: 25%;
+}
+
 .fc-view-table table.fc-list-smart {
-	table-layout: auto;
+/*	table-layout: auto; */
 }
 
 .fc-listappend {
@@ -1363,7 +1381,7 @@ fieldset #calendarcategories div {
 /* Invitation UI in mail */
 
 #messagemenu li a.calendarlink span.calendar {
-	background-position: 0px -1948px;
+	background-position: 0px -2197px;
 }
 
 div.calendar-invitebox {

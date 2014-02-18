@@ -188,11 +188,22 @@ class Property extends Node {
         $src = array(
             '\\',
             "\n",
+            "\r",
         );
         $out = array(
             '\\\\',
             '\n',
+            '',
         );
+
+        // avoid double-escaping of \, and \; from Compound properties
+        if (method_exists($this, 'setParts')) {
+            $src[] = '\\\\,';
+            $out[] = '\\,';
+            $src[] = '\\\\;';
+            $out[] = '\\;';
+        }
+
         $str.=':' . str_replace($src, $out, $this->value);
 
         $out = '';
