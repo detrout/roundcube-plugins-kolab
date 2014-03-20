@@ -74,9 +74,9 @@ class kolab_storage_folder
      * @param string The folder name/path
      * @param string Optional folder type if known
      */
-    public function set_folder($name, $ftype = null)
+    public function set_folder($name, $type = null)
     {
-        $this->type_annotation = $ftype ? $ftype : kolab_storage::folder_type($name);
+        $this->type_annotation = $type ? $type : kolab_storage::folder_type($name);
 
         $oldtype = $this->type;
         list($this->type, $suffix) = explode('.', $this->type_annotation);
@@ -91,7 +91,6 @@ class kolab_storage_folder
         $this->imap->set_folder($this->name);
         $this->cache->set_folder($this);
     }
-
 
     /**
      *
@@ -280,7 +279,7 @@ class kolab_storage_folder
         }
 
         // generate a folder UID and set it to IMAP
-        $uid = rtrim(chunk_split(md5($this->name . $this->get_owner()), 12, '-'), '-');
+        $uid = rtrim(chunk_split(md5($this->name . $this->get_owner() . uniqid('-', true)), 12, '-'), '-');
         $this->set_uid($uid);
 
         return $uid;
@@ -424,6 +423,21 @@ class kolab_storage_folder
         return $this->cache->select($this->_prepare_query($query), true);
     }
 
+    /**
+     * Setter for ORDER BY and LIMIT parameters for cache queries
+     *
+     * @param array   List of columns to order by
+     * @param integer Limit result set to this length
+     * @param integer Offset row
+     */
+    public function set_order_and_limit($sortcols, $length = null, $offset = 0)
+    {
+        $this->cache->set_order_by($sortcols);
+
+        if ($length !== null) {
+            $this->cache->set_limit($length, $offset);
+        }
+    }
 
     /**
      * Helper method to sanitize query arguments
@@ -753,24 +767,27 @@ class kolab_storage_folder
 
             $result = $this->imap->save_message($this->name, $raw_msg, null, false, null, null, $binary);
 
-            // delete old message
-            if ($result && !empty($object['_msguid']) && !empty($object['_mailbox'])) {
-                $this->cache->bypass(true);
-                $this->imap->delete_message($object['_msguid'], $object['_mailbox']);
-                $this->cache->bypass(false);
-                $this->cache->set($object['_msguid'], false, $object['_mailbox']);
-            }
-
             // update cache with new UID
             if ($result) {
+                $old_uid = $object['_msguid'];
+
                 $object['_msguid'] = $result;
                 $object['_mailbox'] = $this->name;
-                $this->cache->insert($result, $object);
 
-                // remove temp file
-                if ($body_file) {
-                    @unlink($body_file);
+                if ($old_uid) {
+                    // delete old message
+                    $this->cache->bypass(true);
+                    $this->imap->delete_message($old_uid, $object['_mailbox']);
+                    $this->cache->bypass(false);
                 }
+
+                // insert/update message in cache
+                $this->cache->save($result, $object, $old_uid);
+            }
+
+            // remove temp file
+            if ($body_file) {
+                @unlink($body_file);
             }
         }
 
@@ -806,7 +823,7 @@ class kolab_storage_folder
                         $recurrence = new kolab_date_recurrence($object['_formatobj']);
                         if ($end = $recurrence->end()) {
                             unset($exception['recurrence']['COUNT']);
-                            $exception['recurrence']['UNTIL'] = new DateTime('@'.$end);
+                            $exception['recurrence']['UNTIL'] = $end;
                         }
                     }
 

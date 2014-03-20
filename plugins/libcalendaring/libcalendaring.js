@@ -23,11 +23,15 @@
 function rcube_libcalendaring(settings)
 {
     // member vars
-    this.settings = settings;
+    this.settings = settings || {};
     this.alarm_ids = [];
     this.alarm_dialog = null;
     this.snooze_popup = null;
     this.dismiss_link = null;
+
+    // abort if env isn't set
+    if (!settings || !settings.date_format)
+      return;
 
     // private vars
     var me = this;
@@ -241,7 +245,7 @@ function rcube_libcalendaring(settings)
 
         // limit visible text length
         if (maxlen) {
-            var morelink = ' <a href="#more" onclick="$(this).hide().next().show();return false" class="morelink">'+rcmail.gettext('showmore','libcalendaring')+'</a><span style="display:none">',
+            var morelink = '<span>... <a href="#more" onclick="$(this).parent().hide().next().show();return false" class="morelink">'+rcmail.gettext('showmore','libcalendaring')+'</a></span><span style="display:none">',
                 lines = html.split(/\r?\n/),
                 words, out = '', len = 0;
 
@@ -260,6 +264,7 @@ function rcube_libcalendaring(settings)
                         if (len > maxlen) {
                             out += morelink;
                             maxlen = html.length * 2;
+                            maxlines = 0;
                         }
                     }
                     out += '\n';
@@ -279,9 +284,17 @@ function rcube_libcalendaring(settings)
         var url1 = '.:;,', url2 = 'a-z0-9%=#@+?&/_~\\[\\]-';
         var link_pattern = new RegExp('([hf]t+ps?://)('+utf_domain+'(['+url1+']?['+url2+']+)*)?', 'ig');
         var mailto_pattern = new RegExp('([^\\s\\n\\(\\);]+@'+utf_domain+')', 'ig');
+        var link_replace = function(matches, p1, p2) {
+          var title = '', text = p2;
+          if (p2.length > 55) {
+            text = p2.substr(0, 45) + '...' + p2.substr(-8);
+            title = p1 + p2;
+          }
+          return '<a href="'+p1+p2+'" class="extlink" target="_blank" title="'+title+'">'+p1+text+'</a>'
+        };
 
         return html
-            .replace(link_pattern, '<a href="$1$2" class="extlink" target="_blank">$1$2</a>')
+            .replace(link_pattern, link_replace)
             .replace(mailto_pattern, '<a href="mailto:$1">$1</a>')
             .replace(/(mailto:)([^"]+)"/g, '$1$2" onclick="rcmail.command(\'compose\', \'$2\');return false"')
             .replace(/\n/g, "<br/>");

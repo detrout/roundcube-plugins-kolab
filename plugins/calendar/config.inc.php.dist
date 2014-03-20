@@ -2,10 +2,9 @@
 /*
  +-------------------------------------------------------------------------+
  | Configuration for the Calendar plugin                                   |
- | Version 0.7-beta                                                        |
  |                                                                         |
  | Copyright (C) 2010, Lazlo Westerhof - Netherlands                       |
- | Copyright (C) 2011, Kolab Systems AG                                    |
+ | Copyright (C) 2011-2014, Kolab Systems AG                               |
  |                                                                         |
  | This program is free software: you can redistribute it and/or modify    |
  | it under the terms of the GNU Affero General Public License as          |
@@ -31,6 +30,9 @@ $rcmail_config['calendar_driver'] = "database";
 
 // default calendar view (agendaDay, agendaWeek, month)
 $rcmail_config['calendar_default_view'] = "agendaWeek";
+
+// show a birthdays calendar from the user's address book(s)
+$rcmail_config['calendar_contact_birthdays'] = false;
 
 // mapping of Roundcube date formats to calendar formats (long/short/agenda)
 // should be in sync with 'date_formats' in main config
@@ -107,10 +109,16 @@ $rcmail_config['calendar_categories'] = array(
 // enable users to invite/edit attendees for shared events organized by others
 $rcmail_config['calendar_allow_invite_shared'] = false;
 
+// allow users to accecpt iTip invitations who are no explicitly listed as attendee.
+// this can be the case if invitations are sent to mailing lists or alias email addresses.
+$rcmail_config['calendar_allow_itip_uninvited'] = true;
+
 // enable asynchronous free-busy triggering after data changed
 $rcmail_config['calendar_freebusy_trigger'] = false;
 
-// SMTP server host used to send (anonymous) itip messages
+// SMTP server host used to send (anonymous) itip messages.
+// Set to '' in order to use PHP's mail() function for email delivery.
+// To override the SMTP port or connection method, provide a full URL like 'tls://somehost:587'
 $rcmail_config['calendar_itip_smtp_server'] = null;
 
 // SMTP username used to send (anonymous) itip messages

@@ -7,7 +7,7 @@
  * @author Thomas Bruederli <bruederli@kolabsys.com>
  * @author Aleksander Machniak <machniak@kolabsys.com>
  *
- * Copyright (C) 2012, Kolab Systems AG <contact@kolabsys.com>
+ * Copyright (C) 2012-2014, Kolab Systems AG <contact@kolabsys.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -110,7 +110,7 @@ class kolab_driver extends calendar_driver
 
     // include virtual folders for a full folder tree
     if (!$active && !$personal && !$this->rc->output->ajax_call && in_array($this->rc->action, array('index','')))
-      $folders = $this->_folder_hierarchy($folders, $this->rc->get_storage()->get_hierarchy_delimiter());
+      $folders = kolab_storage::folder_hierarchy($folders);
 
     foreach ($folders as $id => $cal) {
       $fullname = $cal->get_name();
@@ -123,6 +123,7 @@ class kolab_driver extends calendar_driver
           'name' => $fullname,
           'listname' => $listname,
           'virtual' => true,
+          'readonly' => true,
         );
       }
       else {
@@ -144,40 +145,27 @@ class kolab_driver extends calendar_driver
       }
     }
 
-    return $calendars;
-  }
-
-  /**
-   * Check the folder tree and add the missing parents as virtual folders
-   */
-  private function _folder_hierarchy($folders, $delim)
-  {
-    $parents = array();
-    $existing = array_map(function($folder){ return $folder->get_name(); }, $folders);
-    foreach ($folders as $id => $folder) {
-      $path = explode($delim, $folder->name);
-      array_pop($path);
-
-      // skip top folders or ones with a custom displayname
-      if (count($path) <= 1 || kolab_storage::custom_displayname($folder->name))
-        continue;
-
-      while (count($path) > 1 && ($parent = join($delim, $path))) {
-        if (!in_array($parent, $existing) && !$parents[$parent]) {
-          $name = kolab_storage::object_name($parent, $folder->get_namespace());
-          $parents[$parent] = new virtual_kolab_calendar($name, $folder->get_namespace());
-          $parents[$parent]->id = kolab_storage::folder_id($parent);
-        }
-        array_pop($path);
+    // append the virtual birthdays calendar
+    if ($this->rc->config->get('calendar_contact_birthdays', false)) {
+      $id = self::BIRTHDAY_CALENDAR_ID;
+      $prefs = $this->rc->config->get('kolab_calendars', array());  // read local prefs
+      if (!$active || $prefs[$id]['active']) {
+        $calendars[$id] = array(
+          'id'         => $id,
+          'name'       => $this->cal->gettext('birthdays'),
+          'listname'   => $this->cal->gettext('birthdays'),
+          'color'      => $prefs[$id]['color'],
+          'active'     => $prefs[$id]['active'],
+          'showalarms' => (bool)$this->rc->config->get('calendar_birthdays_alarm_type'),
+          'class_name' => 'birthdays',
+          'readonly'   => true,
+          'default'    => false,
+          'children'   => false,
+        );
       }
     }
 
-    // add virtual parents to the list and sort again
-    if (count($parents)) {
-      $folders = kolab_storage::sort_folders(array_merge($folders, array_values($parents)));
-    }
-
-    return $folders;
+    return $calendars;
   }
 
   /**
@@ -277,23 +265,27 @@ class kolab_driver extends calendar_driver
 
       // create ID
       $id = kolab_storage::folder_id($newfolder);
-
-      // fallback to local prefs
-      $prefs['kolab_calendars'] = $this->rc->config->get('kolab_calendars', array());
-      unset($prefs['kolab_calendars'][$prop['id']]);
-
-      if (isset($prop['color']))
-        $prefs['kolab_calendars'][$id]['color'] = $prop['color'];
-      if (isset($prop['showalarms']))
-        $prefs['kolab_calendars'][$id]['showalarms'] = $prop['showalarms'] ? true : false;
-
-      if ($prefs['kolab_calendars'][$id])
-        $this->rc->user->save_prefs($prefs);
-
-      return true;
+    }
+    else {
+      $id = $prop['id'];
     }
 
-    return false;
+    // fallback to local prefs
+    $prefs['kolab_calendars'] = $this->rc->config->get('kolab_calendars', array());
+    unset($prefs['kolab_calendars'][$prop['id']]['color'], $prefs['kolab_calendars'][$prop['id']]['showalarms']);
+
+    if (isset($prop['color']))
+      $prefs['kolab_calendars'][$id]['color'] = $prop['color'];
+
+    if (isset($prop['showalarms']) && $id == self::BIRTHDAY_CALENDAR_ID)
+      $prefs['calendar_birthdays_alarm_type'] = $prop['showalarms'] ? $this->alarm_types[0] : '';
+    else if (isset($prop['showalarms']))
+      $prefs['kolab_calendars'][$id]['showalarms'] = $prop['showalarms'] ? true : false;
+
+    if (!empty($prefs['kolab_calendars'][$id]))
+      $this->rc->user->save_prefs($prefs);
+
+    return true;
   }
 
 
@@ -306,6 +298,13 @@ class kolab_driver extends calendar_driver
   {
     if ($prop['id'] && ($cal = $this->calendars[$prop['id']])) {
       return $cal->storage->activate($prop['active']);
+    }
+    else {
+      // save state in local prefs
+      $prefs['kolab_calendars'] = $this->rc->config->get('kolab_calendars', array());
+      $prefs['kolab_calendars'][$prop['id']]['active'] = (bool)$prop['active'];
+      $this->rc->user->save_prefs($prefs);
+      return true;
     }
 
     return false;
@@ -393,8 +392,10 @@ class kolab_driver extends calendar_driver
 
       $success = $storage->insert_event($event);
       
-      if ($success && $this->freebusy_trigger)
+      if ($success && $this->freebusy_trigger) {
         $this->rc->output->command('plugin.ping_url', array('action' => 'calendar/push-freebusy', 'source' => $storage->id));
+        $this->freebusy_trigger = false; // disable after first execution (#2355)
+      }
       
       return $success;
     }
@@ -754,7 +755,12 @@ class kolab_driver extends calendar_driver
       $events = array_merge($events, $this->calendars[$cid]->list_events($start, $end, $search, $virtual, $query));
       $categories += $this->calendars[$cid]->categories;
     }
-    
+
+    // add events from the address books birthday calendar
+    if (in_array(self::BIRTHDAY_CALENDAR_ID, $calendars)) {
+      $events = array_merge($events, $this->load_birthday_events($start, $end, $search, $modifiedsince));
+    }
+
     // add new categories to user prefs
     $old_categories = $this->rc->config->get('calendar_categories', $this->default_categories);
     if ($newcats = array_diff(array_map('strtolower', array_keys($categories)), array_map('strtolower', array_keys($old_categories)))) {
@@ -1278,32 +1284,3 @@ class kolab_driver extends calendar_driver
   }
 
 }
-
-
-/**
- * Helper class that represents a virtual IMAP folder
- * with a subset of the kolab_calendar API.
- */
-class virtual_kolab_calendar
-{
-    public $name;
-    public $namespace;
-    public $virtual = true;
-
-    public function __construct($name, $ns)
-    {
-        $this->name = $name;
-        $this->namespace = $ns;
-    }
-
-    public function get_name()
-    {
-        return $this->name;
-    }
-
-    public function get_namespace()
-    {
-        return $this->namespace;
-    }
-}
-

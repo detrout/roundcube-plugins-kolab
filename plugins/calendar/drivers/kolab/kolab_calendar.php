@@ -233,7 +233,7 @@ class kolab_calendar
     }
 
     $events = array();
-    foreach ((array)$this->storage->select($query) as $record) {
+    foreach ($this->storage->select($query) as $record) {
       $event = $this->_to_rcube_event($record);
       $this->events[$event['id']] = $event;
 
@@ -267,9 +267,18 @@ class kolab_calendar
         $add = true;
 
         // skip the first instance of a recurring event if listed in exdate
-        if ($virtual && !empty($event['recurrence']['EXDATE'])) {
+        if ($virtual && (!empty($event['recurrence']['EXDATE']) || !empty($event['recurrence']['EXCEPTIONS']))) {
           $event_date = $event['start']->format('Ymd');
-          foreach ($event['recurrence']['EXDATE'] as $exdate) {
+          $exdates = (array)$event['recurrence']['EXDATE'];
+
+          // add dates from exceptions to list
+          if (is_array($event['recurrence']['EXCEPTIONS'])) {
+              foreach ($event['recurrence']['EXCEPTIONS'] as $exception) {
+                  $exdates[] = clone $exception['start'];
+              }
+          }
+
+          foreach ($exdates as $exdate) {
             if ($exdate->format('Ymd') == $event_date) {
               $add = false;
               break;
