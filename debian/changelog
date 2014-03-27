@@ -1,3 +1,9 @@
+roundcubemail-plugins-kolab (1:3.1.7-0~kolab2.1) UNRELEASED; urgency=medium
+
+  * Add patch for postgres.initial.sql
+
+ -- Diane Trout <diane@ghic.org>  Wed, 26 Mar 2014 23:07:08 -0700
+
 roundcubemail-plugins-kolab (1:3.1.7-0~kolab2) unstable; urgency=low
 
   * If both kolab.inc.php and libkolab.inc.php exist (in postinst), make sure only libkolab.inc.php exists
